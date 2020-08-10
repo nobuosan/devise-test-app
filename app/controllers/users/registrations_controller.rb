@@ -14,31 +14,55 @@ class Users::RegistrationsController < Devise::RegistrationsController
     respond_with resource
   end
 
-    # GET /resource/before_sign_up
+  # GET /resource/before_sign_up
+  # 仮登録状態のプロフィール入力画面（メール認証後のアクション）
   def before_create
+    # 引数のresourceを使ってユーザーを取得
     @user =  User.find(params["resource"])
     @token = params["confirmation_token"]
   end
-    # PUT /resource/before_sign_up
-  def before_update
-    @user = User.find(params["user"]["user_id"])
+
+  # POST /resource/before_sign_up
+  # 仮登録状態のプロフィール入力完了画面(プロフィール入力後のアクション)
+  def before_confirm
+    @user =  User.find(params["user"]["user_id"])
     @user.name = params["user"]["name"]
-    @user.save
     @token = params["confirmation_token"]
+    if @user.valid?
+      render :action => 'before_confirm'
+      flash.now[:success] = '確認して完了してください'
+    else
+     render :action => 'before_create'
+     flash.now[:alert] = '失敗しました'
+    end
+  end
 
-    binding.pry
-
-    redirect_to confirmation_path(resource, confirmation_token: @token)
+  # POST /resource/before_update
+  # 仮登録状態のプロフィール入力内容更新処理
+  def before_update
+    @user =  User.find(params["user"]["user_id"])
+    @token = params["confirmation_token"]
+    @user.save
+    if @user.valid?
+      # ここが肝！
+      #  confirmation_pathにuserデータと認証トークンを付与することで本会員登録される
+      redirect_to confirmation_path(@user, confirmation_token: @token)
+      flash[:success] = '確認して完了してください'
+    else
+      render :action => 'before_create'
+      flash.now[:alert] = '失敗しました'
+    end
   end
 
   # POST /resource
   def create
     build_resource(sign_up_params)
     # temporary session data to the newly created user.
-    # build_resourceメソッドの中身
+    # build_resourceメソッドの中身は以下
     # def build_resource(hash = {})
     #   self.resource = resource_class.new_with_session(hash, session)
     # end
+
     resource.save
     yield resource if block_given?
     if resource.persisted?
